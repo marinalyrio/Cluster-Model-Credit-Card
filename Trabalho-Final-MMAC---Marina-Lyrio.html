@@ -1,0 +1,215 @@
+﻿<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html><head></head><body>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="container-fluid main-container">
+
+
+
+
+<div class="fluid-row">
+
+
+
+<h1 class="title toc-ignore">Trabalho Final</h1>
+<h4 class="author">Marina Lyrio</h4>
+<h4 class="date">15/02/2021</h4>
+
+</div>
+
+
+<p>Para o trabalho final, ser&#225; utilizada a base de usu&#225;rios de um cart&#227;o de cr&#233;dito, retirada do Kaggle. Essa base traz dados sobre usu&#225;rios de cart&#245;es de cr&#233;dito e o seu comportamento financeiro atrav&#233;s de 18 vari&#225;veis. com o objetivo de criarmos uma segmenta&#231;&#227;o de clientes baseada nos perfis aproximados.</p>
+<p>Come&#231;aremos analisando o n&#250;mero de transa&#231;&#245;es na base.</p>
+<pre><code>## [1] 8950</code></pre>
+<p>O n&#250;mero de amostras &#233; significativo, logo podemos continuar com a base sem necessidade de pegar mais dados.</p>
+<pre><code>## tibble [8,950 x 18] (S3: spec_tbl_df/tbl_df/tbl/data.frame)
+##  $ CUST_ID                         : chr [1:8950] &quot;C10001&quot; &quot;C10002&quot; &quot;C10003&quot; &quot;C10004&quot; ...
+##  $ BALANCE                         : num [1:8950] 40.9 3202.5 2495.1 1666.7 817.7 ...
+##  $ BALANCE_FREQUENCY               : num [1:8950] 0.818 0.909 1 0.636 1 ...
+##  $ PURCHASES                       : num [1:8950] 95.4 0 773.2 1499 16 ...
+##  $ ONEOFF_PURCHASES                : num [1:8950] 0 0 773 1499 16 ...
+##  $ INSTALLMENTS_PURCHASES          : num [1:8950] 95.4 0 0 0 0 ...
+##  $ CASH_ADVANCE                    : num [1:8950] 0 6443 0 206 0 ...
+##  $ PURCHASES_FREQUENCY             : num [1:8950] 0.1667 0 1 0.0833 0.0833 ...
+##  $ ONEOFF_PURCHASES_FREQUENCY      : num [1:8950] 0 0 1 0.0833 0.0833 ...
+##  $ PURCHASES_INSTALLMENTS_FREQUENCY: num [1:8950] 0.0833 0 0 0 0 ...
+##  $ CASH_ADVANCE_FREQUENCY          : num [1:8950] 0 0.25 0 0.0833 0 ...
+##  $ CASH_ADVANCE_TRX                : num [1:8950] 0 4 0 1 0 0 0 0 0 0 ...
+##  $ PURCHASES_TRX                   : num [1:8950] 2 0 12 1 1 8 64 12 5 3 ...
+##  $ CREDIT_LIMIT                    : num [1:8950] 1000 7000 7500 7500 1200 1800 13500 2300 7000 11000 ...
+##  $ PAYMENTS                        : num [1:8950] 202 4103 622 0 678 ...
+##  $ MINIMUM_PAYMENTS                : num [1:8950] 140 1072 627 NA 245 ...
+##  $ PRC_FULL_PAYMENT                : num [1:8950] 0 0.222 0 0 0 ...
+##  $ TENURE                          : num [1:8950] 12 12 12 12 12 12 12 12 12 12 ...
+##  - attr(*, &quot;spec&quot;)=
+##   .. cols(
+##   ..   CUST_ID = col_character(),
+##   ..   BALANCE = col_double(),
+##   ..   BALANCE_FREQUENCY = col_double(),
+##   ..   PURCHASES = col_double(),
+##   ..   ONEOFF_PURCHASES = col_double(),
+##   ..   INSTALLMENTS_PURCHASES = col_double(),
+##   ..   CASH_ADVANCE = col_double(),
+##   ..   PURCHASES_FREQUENCY = col_double(),
+##   ..   ONEOFF_PURCHASES_FREQUENCY = col_double(),
+##   ..   PURCHASES_INSTALLMENTS_FREQUENCY = col_double(),
+##   ..   CASH_ADVANCE_FREQUENCY = col_double(),
+##   ..   CASH_ADVANCE_TRX = col_double(),
+##   ..   PURCHASES_TRX = col_double(),
+##   ..   CREDIT_LIMIT = col_double(),
+##   ..   PAYMENTS = col_double(),
+##   ..   MINIMUM_PAYMENTS = col_double(),
+##   ..   PRC_FULL_PAYMENT = col_double(),
+##   ..   TENURE = col_double()
+##   .. )</code></pre>
+<p>Todas as nossas vari&#225;veis s&#227;o num&#233;ricas, exceto a coluna <strong>CUST_ID</strong>, que identifica o usu&#225;rio. Como essa informa&#231;&#227;o n&#227;o &#233; relevante para a clusteriza&#231;&#227;o de dados, iremos retirar esssa coluna, e guard&#225;-la caso seja necess&#225;rio usarmos depois.</p>
+<p>Tamb&#233;m j&#225; podemos observar que h&#225; duas colunas (<strong>CREDIT_LIMIT</strong> e <strong>MINIMUM_PAYMENTS</strong>) com NAs. Como a quantidade de respostas com NA n&#227;o &#233; significativa (cerca de 3,5%), iremos retirar essas linhas atrav&#233;s do na.omit.</p>
+<p>Agora, iremos analisar se h&#225; algum usu&#225;rio duplicado. Para isso, utilizaremos a coluna destacada <strong>CUST_ID</strong>.</p>
+<pre><code>##   Usu&#225;rios distintos N&#186; de linhas da base
+## 1               8636                 8636</code></pre>
+<p>Sendo assim, conclu&#237;mos que n&#227;o h&#225; transa&#231;&#245;es repetidas.</p>
+<p>A seguir, iremos analisar a vari&#225;vel <strong>Tenure</strong>, que traz informa&#231;&#245;es sobre quanto tempo o usu&#225;rio tem de posse do cart&#227;o de cr&#233;dito. Iremos plotar o histograma da vari&#225;vel para isso.</p>
+<p><img src="javascript://" width="672"/></p>
+<p>Podemos ver pelo histograma que uma parte dos dados tem <strong>TENURE</strong> &lt; 12. A quantidade foi filtrada e contada abaixo:</p>
+<pre><code>##      n
+## 1 1290</code></pre>
+<p>Isso corresponde a 15% das linhas. Dessa forma, iremos retirar esses casos e depois, retirar a vari&#225;vel <strong>Tenure</strong>. Fazemos isso com o objetivo de diminuir a base de dados, para facilitar a minera&#231;&#227;o.</p>
+<p>O pr&#243;ximo passo ser&#225; a an&#225;lise da matriz de correla&#231;&#227;o entre as vari&#225;veis, para podermos avaliar como elas se relacionam entre si e se h&#225; necessidade de seguirmos com todas as colunas. Foi considerara colinearidade &gt;80%. Por quest&#227;o de espa&#231;o, a matriz n&#227;o ser&#225; mostrada aqui.</p>
+<p>A matriz de colinearidade indica que as vari&#225;veis abaixo s&#227;o correlacionadas:</p>
+<p><strong>Purchase</strong> - <strong>OneOffPurchase</strong> (91,7%)</p>
+<p><strong>Purchase Frequency</strong> - <strong>Purchase Installment Frequency</strong> (85,7%)</p>
+<p><strong>Cash Advcance Frequency</strong> - <strong>Cash Advance Trx</strong> (82,7%)</p>
+<p>Logo, iremos retirar 3 vari&#225;veis correlacionadas. Foram escolhidas as vari&#225;veis abaixo, porque elas t&#234;m maior colinearidade com as outras vari&#225;veis. Elas s&#227;o: <strong>One Off Purchases</strong>, <strong>Purchases Frequency</strong> e <strong>Cash Advance Trx</strong>. Dessa maneira, ficaremos com 13 colunas.</p>
+<p>A partir de agora, iremos normalizar os dados, para que n&#227;o haja problemas de escala.</p>
+<p><img src="javascript://" width="672"/></p>
+<p>Como podemos ver, a base teve a escala diminu&#237;da, com as vari&#225;veis em conson&#226;ncia. Pela reta, podemos ver um achatamento da escala dos valores, apesar de n&#227;o ter tido mudan&#231;a na forma.</p>
+<p>Agora, com a nossa base j&#225; bastante normalizada, iremos fazer o tratamento dos outliers. Para isso, come&#231;aremos plotando todas dimens&#245;es, para podermos identificar quais s&#227;o as que t&#234;m outliers. Por quest&#227;o de espa&#231;o, iremos plotar apenas as dimens&#245;es que apresentaram outliers.</p>
+<p><img src="javascript://" width="672"/></p>
+<p>Foi considerado retirar as linhas que tivessem outliers. Contudo, essa op&#231;&#227;o se mostrou invi&#225;vel, dada a grande quantidade de outliers. Dessa forma, foi escolhido substituir os outliers por valores dos quartis, da seguinte forma:</p>
+<ol style="list-style-type: lower-alpha;">
+<li>outliers negativos ser&#227;o substitu&#237;dos por 5% do quartil;</li>
+<li>outliers positivos ser&#227;o substitu&#237;dos por 95% do quartil.</li>
+</ol>
+<p>Com os outliers tratados, nossas dimens&#245;es ficaram da seguinte maneira: <img src="javascript://" width="672"/></p>
+<p>Em seguida, ser&#225; feita a redu&#231;&#227;o da dimensionalidade. Iremos plotar as dire&#231;&#245;es e o percentual de vari&#226;ncia explicada por cada dimens&#227;o. Foi utilizado o m&#233;todo PCA.</p>
+<p><img src="javascript://" width="672"/><img src="javascript://" width="672"/></p>
+<p>Segundo o gr&#225;fico, 5 dimens&#245;es respondem 80% das vari&#225;veis da base. Logo, sabemos que podemos seguir com 5 dimens&#245;es para esse caso. Sendo assim, plotaremos abaixo quais s&#227;o essas 5 dimens&#245;es que representam esse percentual. O restante n&#227;o ser&#225; utilizado.</p>
+<pre><code>## [1] &quot;Contribui&#231;&#227;o das vari&#225;veis&quot;</code></pre>
+<p><img src="javascript://" width="672"/></p>
+<p>Logo, como seguiremos com 5 dimens&#245;es, iremos escolher o n&#250;mero de clusters usando a base com redu&#231;&#227;o de dimensionalidade.</p>
+<p>Iremos fazer isso de duas formas: atrav&#233;s do m&#233;todo do cotovelo, e pelo m&#233;todo da silhueta. Abaixo foram plotados os dois m&#233;todos, com a indica&#231;&#227;o do n&#250;mero &#243;timo de clusters.</p>
+<p><img src="javascript://" width="672"/></p>
+<p>O m&#233;todo do cotovelo nos mostra uma curva acentuada em k = 3, e mudan&#231;as leves de inclina&#231;&#227;o depois. J&#225; o m&#233;todo da silhueta indica k = 2 como n&#250;mero &#243;timo, com uma queda acentuada em k = 3. Foi escolhido seguir com k = 3, porque &#233; o ponto que apresenta inflex&#227;o consider&#225;vel pelos dois m&#233;todos.</p>
+<p>Sendo assim, seguiremos com 5 dimens&#245;es e 3 clusters. Faremos a clusteriza&#231;&#227;o de duas formas: pela clusteriza&#231;&#227;o hier&#225;rquica e m&#233;todo k-means.</p>
+<p>Come&#231;aremos com a clusteriza&#231;&#227;o k-means, considerando 3 clusters.</p>
+<p><img src="javascript://" width="672"/></p>
+<p>Pela clusteriza&#231;&#227;o por K-Means, podemos ver que o 2&#186; cluster est&#225; bem espa&#231;ado, principalmente quando comparado com o 1&#186; cluster.</p>
+<p>Em seguida, rodaremos a clusteriza&#231;&#227;o hier&#225;rquica.</p>
+<p>Para a an&#225;lise entre os dois clusters, iremos plotar as silhuetas para as duas clusteriza&#231;&#245;es:</p>
+<pre><code>##   cluster size ave.sil.width
+## 1       1 1429          0.21
+## 2       2 4534          0.38
+## 3       3 1383          0.27</code></pre>
+<pre><code>##   cluster size ave.sil.width
+## 1       1 5437          0.31
+## 2       2 1236          0.30
+## 3       3  673          0.30</code></pre>
+<p><img src="javascript://" width="672"/></p>
+<p>Pelos gr&#225;ficos, &#233; n&#237;tida que a clusteriza&#231;&#227;o por K-Means traz mais ganhos. Al&#233;m de balancear melhor os 3 clusters, ela traz menos valores negativos e um maior &#237;ndice de agrupamento.</p>
+<p>Sendo assim, aqui terminamos a clusteriza&#231;&#227;o. Foram utilizadas 5 dimens&#245;es, divididas em 3 clusters atrav&#233;s do m&#233;todo K-Means.</p>
+<p>Abaixo, segue a interpreta&#231;&#227;o dos 3 grupos criados.</p>
+<p><strong>Interpreta&#231;&#227;o da Clusteriza&#231;&#227;o</strong></p>
+<p><img src="javascript://" width="672"/></p>
+<p>Pelos gr&#225;ficos, &#233; poss&#237;vel come&#231;ar a tra&#231;ar o perfil de cada grupo. O primeiro gr&#225;fico separa o cluster azul do rosa. O grupo azul possui mais saldo em conta, enquanto que o grupo rosa est&#225; mais &#224; esquerda. O grupo rosa se mostra distribu&#237;do em rela&#231;&#227;o ao saldo, por&#233;m com maior quantidade de compras &#224; prazo que o grupo azul.</p>
+<p>O segundo gr&#225;fico, comparando a quantidade de compras a prazo e &#224; vista, mostra que o grupo rosa, novamente, se diferencia do grupo azul por maior quantidade de compras - tanto &#224; vista quanto a prazo.</p>
+<p><img src="javascript://" width="672"/></p>
+<p>O terceiro gr&#225;fico mostra o limite do cart&#227;o de cr&#233;dito. O grupo rosa possui os menores valores. Quando os grupos azul e rosa s&#227;o comparados, aparece uma informa&#231;&#227;o interessante: o grupo azul possui maior saldo em conta, por&#233;m limite no cart&#227;o de cr&#233;dito um pouco menor.</p>
+<p>Sendo assim, podemos crer que:</p>
+<ol style="list-style-type: decimal;">
+<li><p>O cluster rosa possui o menor poder aquisitivo. S&#227;o pessoas que t&#234;m menor saldo em conta e menor limite de cart&#227;o de cr&#233;dito. Suas compras tendem a ser a prazo.</p></li>
+<li><p>O grupo verde apresenta pessoas com poder aquisitivo intermedi&#225;rio entre os dois grupos, por&#233;m com maior consumo. Compram mais, &#224; vista ou a prazo, e por isso tendem a ter o limite de cart&#227;o alto.</p></li>
+<li><p>O grupo azul n&#227;o tem alto consumo em cart&#227;o de cr&#233;dito. S&#227;o pessoas com maior saldo em conta, por&#233;m com baixa atividade de compra e limite m&#233;dio do cart&#227;o de cr&#233;dito. N&#227;o costumam fazer compras a prazo.</p></li>
+</ol>
+<p><img src="javascript://" width="672"/></p>
+<p>Conforme esperado, os gr&#225;ficos de boxplot acima confirmaram as suposi&#231;&#245;es sobre cada cluster.</p>
+<pre><code>## `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
+## `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.</code></pre>
+<p><img src="javascript://" width="672"/></p>
+<p>Os gr&#225;ficos acima complementam o perfil dos clusters. Eles comprovam que o grupo azul possui baixa atividade do cart&#227;o de cr&#233;dito, preferindo muitas vezes pagar em dinheiro. Assim como o grupo rosa, eles possuem baixo n&#250;mero de transa&#231;&#245;es, ao contr&#225;rio do grupo verde, que possui maior consumo no cart&#227;o.</p>
+<p><img src="javascript://" width="672"/></p>
+<p>Por fim, analisamos os pagamentos dos 3 grupos. Podemos concluir aqui que o grupo rosa, como esperado, possui a menor fatura da base. O grupo verde, devido ao alto consumo, possui a maior fatura. No entanto, quando analisamos o grupo azul, vemos que s&#227;o pessoas que n&#227;o costumam ter a fatura mais alta, por&#233;m t&#234;m um ticket m&#233;dio mais alto que os demais grupos - isso &#233; interpretado por terem a fatura m&#237;nima mais alta, logo, seus gastos costumam ser altos por&#233;m menos frequentes.</p>
+<p><strong>Conclus&#227;o</strong></p>
+<p>O trabalho chega &#224; sua conclus&#227;o com a apresenta&#231;&#227;o dos tr&#234;s grupos clusterizados a partir do consumo do cart&#227;o de cr&#233;dito. A an&#225;lise dos grupos indica que h&#225; um grupo espec&#237;fico (verde) mais prop&#237;cio ao consumo no cart&#227;o, podendo ter a&#231;&#245;es mais direcionadas. Esse grupo, pela an&#225;lise do cluster, &#233; mais consumista, mesmo que n&#227;o tenha saldo em conta t&#227;o alto ou tenha que recorrer a compras a prazo. Uma outra dire&#231;&#227;o, a partir da an&#225;lise de cluster, &#233; a implementa&#231;&#227;o de a&#231;&#245;es para o grupo azul. Esse possui saldo por&#233;m n&#227;o possui tanto consumo, sendo um mercado com bom potencial a ser explorado. Para isso, primeiro &#233; preciso entender porque esse grupo n&#227;o tem tanto consumo no cart&#227;o, uma vez que eles t&#234;m meios para isso. Por fim, o grupo rosa apresenta o menor potencial a ser desenvolvido, por ser composto de pessoas que n&#227;o tem tanto saldo em conta e menor limite no cart&#227;o. Esse grupo pode ser melhor explorado atrav&#233;s de a&#231;&#245;es de pagamento &#224; prazo. A an&#225;lise das compras x compras a prazo mostrou pequena diferen&#231;a entre essas, e junto com a baixa fatura, mostra que esse grupo n&#227;o consome porque n&#227;o tem condi&#231;&#245;es de pagar &#224; vista.</p>
+<p>Para o aprimoramento do trabalho, eu recomendo a aplica&#231;&#227;o de outras t&#233;cnicas de colinearidade e an&#225;lise de outros k para clusteriza&#231;&#227;o.</p>
+
+
+
+
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<script type="text/javascript" src="/d2l/common/math/MathML.js?v=20.21.5.29742 "></script><script type="text/javascript">document.addEventListener('DOMContentLoaded', function() { D2LMathML.DesktopInit('https://s.brightspace.com/lib/mathjax/2.7.4/MathJax.js?config=MML_HTMLorMML','https://s.brightspace.com/lib/mathjax/2.7.4/MathJax.js?config=TeX-AMS-MML_HTMLorMML','130',false); });</script></body></html>
