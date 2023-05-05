@@ -1,0 +1,535 @@
+---
+title: "Analysis_1_CC"
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+date: "2023-05-04"
+---
+This was my final paper for Matrix Methods and Cluster Analysis subject, in my Specialization (MBA Executivo) in Big Data and Business Analysis. 
+It was used a public database, available at Kaggle. 
+This database provides data on credit card users and their financial behavior through 18 variables, with the objective of creating a customer segmentation based on approximate profiles.
+It was used the R Markdown setup, developing the analysis in HTML file. 
+
+
+```{r, echo = TRUE, message= FALSE}
+#Used packages
+#install.packages("tidyverse")
+#install.packages("corrplot")
+#install.packages("ggplot2")
+#install.packages("gridExtra")
+#install.packages("rpart")
+#install.packages("factoextra")
+#rm(list=ls())
+#install.packages(readxl)
+
+library(tidyverse)
+library(corrplot)
+library (ggplot2)
+library(gridExtra)
+library(rpart)
+library(factoextra)
+library(readxl)
+
+setwd("C:\\Users\\Marina\\Documents\\Desafio_files\\CC CLuster") 
+base_original <- read.table("Base.csv", sep=";", header=T)
+base <- base_original
+head(base)
+```
+We will start by analyzing the number of transactions in the base.
+
+```{r, echo = TRUE}
+nrow(base)
+
+```
+
+The number of samples is significant, so we can continue with the base without needing to get more data.
+
+```{r, echo = TRUE}
+str(base)
+```
+
+All our variables are numeric, except the column **CUST_ID**, which identifies the user. As this information is not relevant for data clustering, we will remove this column, and keep it in case we need to use it later.
+
+We can also already see that there are two columns (**CREDIT_LIMIT** and **MINIMUM_PAYMENTS**) with NAs. As the number of responses with NA is not significant (about 3.5%), we will remove these lines through na.omit.
+
+```{r, echo = TRUE, message = FALSE}
+base <- na.omit(base)
+
+base_cust_id <- base %>% select(CUST_ID)
+base <- base %>% select(-CUST_ID)
+
+```
+
+Now, let's analyze if there are any duplicate users. For this, we will use the highlighted column **CUST_ID**.
+
+```{r, echo = TRUE}
+n_distintos <- count(distinct(base_cust_id %>% select(CUST_ID)))
+n_linhas <- nrow(base)
+n <- c(n_distintos, n_linhas)
+```
+
+```{r, echo = TRUE}
+df <- data.frame(n)
+colnames (df) <- c("Distinct Users", "Number of lines in base")
+df
+```
+```{r, echo = TRUE, message = FALSE}
+rm(df)
+rm(n)
+rm(n_distintos)
+rm(n_linhas)
+```
+
+Therefore, we conclude that there are no repeated transactions.
+
+Next, we will analyze the variable **Tenure**, which brings information about how long the user has had the credit card. We will plot the variable's histogram for this.
+
+```{r, echo = TRUE}
+hist(base$TENURE, main = "Histograma da variavel TENURE", xlab = "Tenure", ylab = "Frequencia",col = c("yellow"))
+```
+
+We can see from the histogram that a part of the data has **TENURE** < 12. The amount has been filtered and counted below:
+
+```{r, echo = TRUE}
+count(base %>% filter(base$TENURE < 12)) %>%
+  as.data.frame()
+```
+This corresponds to 15% of the lines. Thus, we will remove these cases and then remove the variable **Tenure**. We do this with the aim of shrinking the database, to facilitate mining.
+
+```{r, echo = TRUE, message = FALSE}
+base_tenure <- base %>% select(TENURE)
+
+base <- base %>%
+  filter(TENURE == 12)
+
+base <- base %>% select(-TENURE)
+
+head(base)
+```
+
+The next step will be the analysis of the correlation matrix between the variables, so that we can assess how they relate to each other and if there is a need to continue with all columns. Collinearity >80% was considered. For space reasons, the matrix will not be shown here.
+
+
+```{r, include = FALSE}
+cor(base) %>% as.data.frame()
+```
+
+The collinearity matrix indicates that the variables below are correlated:
+
+**Purchase** - **OneOffPurchase** (91,7%)
+
+**Purchase Frequency** - **Purchase Installment Frequency** (85,7%)
+
+**Cash Advcance Frequency** - **Cash Advance Trx** (82,7%)
+
+So, we will remove 3 correlated variables.
+The variables below were chosen because they have greater collinearity with the other variables. They are: **One Off Purchases**, **Purchases Frequency** and **Cash Advance Trx**. This way, we will have 13 columns.
+
+```{r, echo = TRUE, message = FALSE}
+base_oneoff_purchases <- base %>% select(ONEOFF_PURCHASES)
+base_purchases_frequency <- base %>% select(PURCHASES_FREQUENCY)
+base_cashadvance_trx <- base %>% select(CASH_ADVANCE_TRX)
+
+base <- base %>% select(-ONEOFF_PURCHASES, -PURCHASES_FREQUENCY, -CASH_ADVANCE_TRX)
+```
+
+From now on, we will normalize the data so that there are no scaling problems.
+
+```{r, echo = TRUE}
+base_normal <- as.data.frame(scale(base))
+
+b_orig <- ggplot(base, aes(x=PAYMENTS, y=MINIMUM_PAYMENTS)) +
+  geom_point() +
+  labs(title="Base") +
+  geom_abline(color = "red")+
+  geom_point(color = "#00AFFF")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+
+b_norm <- ggplot(base_normal, aes(x=PAYMENTS, y=MINIMUM_PAYMENTS)) +
+  geom_point() +
+  labs(title="Base Normalizada") +
+  geom_abline(color = "red")+
+  geom_point(color = "#0FFFFF")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+
+grid.arrange(b_orig, b_norm, ncol=2)
+
+```
+```{r, echo = TRUE, message = FALSE}
+rm(b_orig)
+rm(b_norm)
+
+```
+
+As we can see, the base was scaled down, with the variables in line. On the straight line, we can see a flattening of the scale of values, although there was no change in shape.
+
+Now, with our base already quite standardized, we will be dealing with outliers. For this, we will start by plotting all dimensions, so that we can identify which ones have outliers.
+For reasons of space, we will only plot the dimensions that had outliers.
+
+```{r, include = FALSE}
+
+boxplot(base_normal, horizontal = TRUE, main = "Boxplot da base de dados")
+
+```
+```{r, echo = TRUE}
+boxplot(base_normal$BALANCE, base_normal$BALANCE_FREQUENCY, base_normal$PURCHASES, base_normal$CASH_ADVANCE, base_normal$ONEOFF_PURCHASES_FREQUENCY, base_normal$CASH_ADVANCE_FREQUENCY, base_normal$CREDIT_LIMIT, base_normal$PAYMENTS,base_normal$MINIMUM_PAYMENTS,base_normal$PRC_FULL_PAYMENT,base_normal$INSTALLMENTS_PURCHASES, base_normal$PURCHASES_TRX, col = "darkgreen", horizontal = TRUE)
+```
+
+It was considered to remove lines that had outliers. However, this option proved to be unfeasible, given the large number of outliers.
+Thus, it was chosen to replace the outliers with values from the quartiles, as follows:
+
+a) negative outliers will be replaced by 5% of the quartile;
+b) positive outliers will be replaced by 95% of the quartile.
+
+
+```{r, include = FALSE}
+base_safepoint2 <- base_normal 
+
+#1. BALANCE
+x <- base_normal$BALANCE
+qnt <- quantile(x, probs=c(.25, .75), na.rm = T)
+caps <- quantile(x, probs=c(.05, .95), na.rm = T)
+H <- 1.5 * IQR(x, na.rm = T)
+x[x < (qnt[1] - H)] <- caps[1]
+x[x > (qnt[2] + H)] <- caps[2]
+base_normal$BALANCE <-  x
+
+#2. BALANCE_FREQUENCY
+x <- base_normal$BALANCE_FREQUENCY
+qnt <- quantile(x, probs=c(.25, .75), na.rm = T)
+caps <- quantile(x, probs=c(.05, .95), na.rm = T)
+H <- 1.5 * IQR(x, na.rm = T)
+x[x < (qnt[1] - H)] <- caps[1]
+x[x > (qnt[2] + H)] <- caps[2]
+base_normal$BALANCE_FREQUENCY <-  x
+
+#3. PURCHASES
+x <- base_normal$PURCHASES
+qnt <- quantile(x, probs=c(.25, .75), na.rm = T)
+caps <- quantile(x, probs=c(.05, .95), na.rm = T)
+H <- 1.5 * IQR(x, na.rm = T)
+x[x < (qnt[1] - H)] <- caps[1]
+x[x > (qnt[2] + H)] <- caps[2]
+base_normal$PURCHASES <-  x
+
+#4. CASH_ADVANCE
+x <- base_normal$CASH_ADVANCE
+qnt <- quantile(x, probs=c(.25, .75), na.rm = T)
+caps <- quantile(x, probs=c(.05, .95), na.rm = T)
+H <- 1.5 * IQR(x, na.rm = T)
+x[x < (qnt[1] - H)] <- caps[1]
+x[x > (qnt[2] + H)] <- caps[2]
+base_normal$CASH_ADVANCE <-  x
+
+#5. ONEOFF_PURCHASES_FREQUENCY
+x <- base_normal$ONEOFF_PURCHASES_FREQUENCY
+qnt <- quantile(x, probs=c(.25, .75), na.rm = T)
+caps <- quantile(x, probs=c(.05, .95), na.rm = T)
+H <- 1.5 * IQR(x, na.rm = T)
+x[x < (qnt[1] - H)] <- caps[1]
+x[x > (qnt[2] + H)] <- caps[2]
+base_normal$ONEOFF_PURCHASES_FREQUENCY <-  x
+
+#6. CASH_ADVANCE_FREQUENCY
+x <- base_normal$CASH_ADVANCE_FREQUENCY
+qnt <- quantile(x, probs=c(.25, .75), na.rm = T)
+caps <- quantile(x, probs=c(.05, .95), na.rm = T)
+H <- 1.5 * IQR(x, na.rm = T)
+x[x < (qnt[1] - H)] <- caps[1]
+x[x > (qnt[2] + H)] <- caps[2]
+base_normal$CASH_ADVANCE_FREQUENCY <-  x
+
+#7. CREDIT_LIMIT
+x <- base_normal$CREDIT_LIMIT
+qnt <- quantile(x, probs=c(.25, .75), na.rm = T)
+caps <- quantile(x, probs=c(.05, .95), na.rm = T)
+H <- 1.5 * IQR(x, na.rm = T)
+x[x < (qnt[1] - H)] <- caps[1]
+x[x > (qnt[2] + H)] <- caps[2]
+base_normal$CREDIT_LIMIT <-  x
+
+# 8. PAYMENTS
+x <- base_normal$PAYMENTS
+qnt <- quantile(x, probs=c(.25, .75), na.rm = T)
+caps <- quantile(x, probs=c(.05, .95), na.rm = T)
+H <- 1.5 * IQR(x, na.rm = T)
+x[x < (qnt[1] - H)] <- caps[1]
+x[x > (qnt[2] + H)] <- caps[2]
+base_normal$PAYMENTS <-  x
+
+#9. MINIMUM_PAYMENTS
+x <- base_normal$MINIMUM_PAYMENTS
+qnt <- quantile(x, probs=c(.25, .75), na.rm = T)
+caps <- quantile(x, probs=c(.05, .95), na.rm = T)
+H <- 1.5 * IQR(x, na.rm = T)
+x[x < (qnt[1] - H)] <- caps[1]
+x[x > (qnt[2] + H)] <- caps[2]
+base_normal$MINIMUM_PAYMENTS <-  x
+
+#10. PRC_FULL_PAYMENT
+x <- base_normal$PRC_FULL_PAYMENT
+qnt <- quantile(x, probs=c(.25, .75), na.rm = T)
+caps <- quantile(x, probs=c(.05, .95), na.rm = T)
+H <- 1.5 * IQR(x, na.rm = T)
+x[x < (qnt[1] - H)] <- caps[1]
+x[x > (qnt[2] + H)] <- caps[2]
+base_normal$PRC_FULL_PAYMENT <-  x
+
+#11. INSTALLMENTS_PURCHASES
+x <- base_normal$INSTALLMENTS_PURCHASES
+qnt <- quantile(x, probs=c(.25, .75), na.rm = T)
+caps <- quantile(x, probs=c(.05, .95), na.rm = T)
+H <- 1.5 * IQR(x, na.rm = T)
+x[x < (qnt[1] - H)] <- caps[1]
+x[x > (qnt[2] + H)] <- caps[2]
+base_normal$INSTALLMENTS_PURCHASES <-  x
+
+#12. PURCHASES_TRX
+x <- base_normal$PURCHASES_TRX
+qnt <- quantile(x, probs=c(.25, .75), na.rm = T)
+caps <- quantile(x, probs=c(.05, .95), na.rm = T)
+H <- 1.5 * IQR(x, na.rm = T)
+x[x < (qnt[1] - H)] <- caps[1]
+x[x > (qnt[2] + H)] <- caps[2]
+base_normal$PURCHASES_TRX <-  x
+
+```
+
+With the outliers treated, our dimensions were as follows:
+
+```{r, echo = TRUE}
+par(mfrow=c(1,2))
+
+boxplot(base_normal$BALANCE, base_normal$BALANCE_FREQUENCY, base_normal$PURCHASES, base_normal$CASH_ADVANCE, base_normal$ONEOFF_PURCHASES_FREQUENCY, base_normal$CASH_ADVANCE_FREQUENCY, base_normal$CREDIT_LIMIT, base_normal$PAYMENTS, base_normal$MINIMUM_PAYMENTS, base_normal$PRC_FULL_PAYMENT, base_normal$INSTALLMENTS_PURCHASES, base_normal$PURCHASES_TRX, col = "darkgreen", horizontal = TRUE)
+
+boxplot (base_safepoint2$PRC_FULL_PAYMENT, base_normal$PRC_FULL_PAYMENT, col = "darkgreen", names = c("S/ trat.", "C/ trat."))
+
+
+
+```
+
+Then, the dimensionality reduction will be done. We will plot the directions and the percentage of variance explained by each dimension. The PCA method was used.
+
+```{r, echo = TRUE}
+pca <- prcomp(base_normal, scale=TRUE, center=TRUE)
+pca_df <- data.frame(x=pca$x[,"PC1"], y=pca$x[,"PC2"])
+
+ggplot(data = pca_df, aes(x,y, color=base_normal$PAYMENTS)) + 
+  geom_point() + xlab("PC1") + ylab("PC2")+
+  labs(color = "Qte de pagamentos feita (var. PAYMENTS)")+labs(title="Grafico PCA")
+
+fviz_screeplot(pca, 
+               addlabels = TRUE, 
+               main = "Variancia acumulada", 
+               xlab = "Dimensoes", 
+               ylab = "Percentual de variaveis explicadas",
+               barfill = "darkred", 
+               barcolor = "black")
+
+```
+
+According to the graph, 5 dimensions account for 80% of the base variables. So, we know that we can go with 5 dimensions for this case. Therefore, we will plot below which are these 5 dimensions that represent this percentage. The rest will not be used.
+
+```{r, echo = TRUE}
+"Contribuiçao das variaveis"
+a <- fviz_contrib(pca, choice = "var", axes = 1, title = "Dimensao 1")
+b <- fviz_contrib(pca, choice = "var", axes = 1:2, title = "Dimensao 1 - 2")
+c <- fviz_contrib(pca, choice = "var", axes = 2, title = "Dimensao 2")
+grid.arrange(a,b, c, ncol = 3)
+```
+
+```{r, include = FALSE}
+rm(a)
+rm(b)
+rm(c)
+```
+
+So, as we will continue with 5 dimensions, we will choose the number of clusters using the base with dimensionality reduction.
+
+We're going to do this in two ways: using the elbow method, and using the silhouette method. The two methods were plotted below, indicating the optimal number of clusters.
+
+```{r, echo = TRUE}
+pca_6 <- pca$x[,1:5]
+
+a <- fviz_nbclust(pca_6, kmeans, method = "wss") + ggtitle("Metodo do Cotovelo") + xlab("Numero k de clusters") + ylab(NULL)
+
+b <- fviz_nbclust(pca_6, kmeans, method = "silhouette") + ggtitle("Metodo da Silhueta") + xlab("Numero k de clusters") + ylab(NULL)
+
+grid.arrange(a,b, ncol = 2)
+clust <- 3
+```
+
+The elbow method shows us a sharp curve at k = 3, and slight changes in slope thereafter. The silhouette method, on the other hand, indicates k = 2 as the optimal number, with a sharp drop at k = 3. It was chosen to continue with k = 3, because it is the point that presents considerable inflection by both methods.
+
+So, we will follow with 5 dimensions and 3 clusters.
+We will do the clustering in two ways: by hierarchical clustering and k-means method.
+
+We will start with k-means clustering, considering 3 clusters.
+
+```{r, echo = TRUE}
+km.res <- kmeans(pca_6, centers = clust, iter.max = 100, nstart = 100)
+
+ggplot() +
+  geom_point(aes(x=pca_6[, 1], y=pca_6[, 2], color=factor(km.res$cluster))) +
+  geom_point(aes(x=km.res$centers[, 1], y=km.res$centers[, 2]), color="black", size=5, shape=4, stroke=2) +
+  scale_color_discrete(name = "Clusters")+labs(title="K-Means com 3 clusters")
+```
+
+By clustering by K-Means, we can see that the 2nd cluster is well spaced, especially when compared to the 1st cluster.
+
+Next, we'll run hierarchical clustering.
+
+```{r, echo = TRUE}
+res.dist <- dist(pca_6, method = "euclidean")
+clust.hq <- hclust(d = res.dist, method = "ward.D2")
+
+#fviz_dend(clust.hq, k = clust, cex = 0.5, color_labels_by_k = TRUE, rect = TRUE) + ggtitle('Dendograma com 3 Clusters') + ylab("Altura")
+
+```
+For the analysis between the two clusters, we will plot the silhouettes for the two clusters:
+
+```{r, echo = TRUE}
+km_silh <- eclust(pca_6, "kmeans", k = 3, graph = FALSE, stand=FALSE, iter.max = 100, 
+                  nstart = 100)
+hc_silh <- eclust(pca_6, "hclust", k = 3, graph = FALSE, stand=FALSE, iter.max = 100, 
+                  nstart = 100)
+
+a <- fviz_silhouette(km_silh, ggtheme = theme_classic(), xlab = "K-Means")
+b <- fviz_silhouette(hc_silh, ggtheme = theme_classic(), xlab = "Hierarquica")
+
+grid.arrange(a,b, ncol = 2)
+
+```
+
+From the graphics, it is clear that clustering by K-Means brings more gains. In addition to better balancing the 3 clusters, it brings less negative values and a higher clustering index.
+
+So here we end the clustering. Five dimensions were used, divided into 3 clusters using the K-Means method.
+
+Below is the interpretation of the 3 groups created.
+
+**Interpretation of Clustering**
+
+```{r, echo = TRUE}
+
+nova_base <- base_normal
+nova_base$Cluster <- km.res$cluster
+
+#nova_base <- nb
+nova_base$Cluster2 <- as.character(nova_base$Cluster)
+
+#Comparision BALANCE x INSTALLMENTS_PURCHASES
+a <-   ggplot() +
+  geom_point(aes(x=nova_base$BALANCE, y=nova_base$INSTALLMENTS_PURCHASES, color=factor(nova_base$Cluster)))  +
+  labs(title="Comparaçao Saldo em Conta x Compras a Prazo", x = "Saldo em conta", y = "Quant. de Compras a Prazo")+ theme(legend.position="none")
+  
+#Comparision PURCHASES x INSTALLMENTS_PURCHASES
+b <-   ggplot() +
+  geom_point(aes(x=nova_base$PURCHASES, y=nova_base$INSTALLMENTS_PURCHASES, color=factor(nova_base$Cluster)))  +labs(title="Comparaçao Compras x Compras a Prazo", x = "Quant. de Compras", y = "Quant. de Compras a prazo")+
+  scale_color_discrete(name = "Clusters")
+  
+#Comparision BALANCE x CREDIT_LIMIT
+c  <-  ggplot() +
+  geom_point(aes(x=nova_base$BALANCE, y=nova_base$CREDIT_LIMIT, color=factor(nova_base$Cluster)))  +
+  scale_color_discrete(name = "Clusters")+labs(title="Comparaçao Saldo em Conta x Limite do Cartao de Credito", x = "Saldo em conta", y = "Limite do Cartao de Credito")
+  
+grid.arrange(a,b, ncol = 2)
+```
+
+Through the graphs, it is possible to start tracing the profile of each group. The first graphic separates the blue from the pink cluster. The blue group has more account balance, while the pink group is farther to the left. The pink group is distributed in relation to the balance, but with a greater amount of installment purchases than the blue group.
+
+The second graph, comparing the amount of installment and spot purchases, shows that the pink group, once again, differs from the blue group in terms of a greater amount of purchases - both in cash and in installments.
+
+```{r, echo = TRUE}
+
+nova_base %>%
+ggplot(aes(x = Cluster2, y = CREDIT_LIMIT, fill = Cluster2)) + 
+    geom_boxplot()+
+  labs(title= "Limite do Cartao de Credito", x = NULL, y = "Limite do Cartao")+
+  scale_color_discrete(name = "Clusters")
+```
+
+The third graphic shows the credit card limit. The pink group has the lowest values. When the blue and pink groups are compared, an interesting piece of information appears: the blue group has a higher account balance, but a slightly lower credit card limit.
+
+Therefore, we can believe that:
+
+1. The pink cluster has the lowest purchasing power. These are people who have a lower account balance and a lower credit card limit. Your purchases tend to be term purchases.
+
+2. The green group has people with intermediate purchasing power between the two groups, but with higher consumption. They buy more, cash or installments, and therefore tend to have a high card limit.
+
+3. The blue group does not have high credit card consumption. They are people with higher account balances, but with low purchase activity and average credit card limit. They do not usually make installment purchases.
+
+
+```{r, echo = TRUE}
+#cor <- c("#F8766D", "#00BA38", "#619CFF")
+
+a <- nova_base %>%
+ggplot(aes(x = Cluster2, y = BALANCE, fill = Cluster2)) + 
+    geom_boxplot()+
+  labs(title= NULL, x = NULL, y = "Saldo em conta")+ theme(legend.position="none")
+
+b <- nova_base %>%
+ggplot(aes(x = Cluster2, y = PURCHASES, fill = Cluster2)) + 
+    geom_boxplot()+
+  labs(title= NULL, x = NULL, y = "Compras")+ theme(legend.position="none")
+
+c <- nova_base %>%
+ggplot(aes(x = Cluster2, y = INSTALLMENTS_PURCHASES, fill = Cluster2)) + 
+    geom_boxplot()+
+  labs(title= NULL, x = NULL, y = "Compras a prazo")+
+  scale_color_discrete(name = "Clusters")
+
+grid.arrange(a,b, c, ncol = 3)
+
+```
+
+As expected, the boxplot charts above confirmed the assumptions about each cluster.
+
+```{r, echo = TRUE}
+#cor <- c("#F8766D", "#00BA38", "#619CFF")
+
+a <- nova_base %>%
+ggplot(aes(x = PURCHASES_TRX, fill = Cluster2)) + 
+    geom_histogram()+
+  labs(title= NULL, x = NULL, y = "Nº de transaçoes")+ theme(legend.position="none")
+
+b <- nova_base %>%
+ggplot(aes(x = CASH_ADVANCE, fill = Cluster2)) + 
+    geom_histogram()+
+  labs(title= NULL, x = NULL, y = "Pgto antecipado em dinheiro")+
+  scale_color_discrete(name = "Clusters")
+
+
+grid.arrange(a,b, ncol = 2)
+
+```
+
+The graphics above complement the clusters profile. They prove that the blue group has low credit card activity, often preferring to pay in cash. Like the pink group, they have a low number of transactions, unlike the green group, which has higher card consumption.
+
+```{r, echo = TRUE}
+
+a <- nova_base %>%
+ggplot(aes(x = Cluster2, y = PAYMENTS, fill = Cluster2)) + 
+    geom_boxplot()+
+  labs(title= NULL, x = NULL, y = "Fatura do cartao")+ 
+  scale_color_discrete(name = "Clusters")
+
+b <- nova_base %>%
+ggplot(aes(x = Cluster2, y = MINIMUM_PAYMENTS, fill = Cluster2)) + 
+    geom_boxplot()+
+  labs(title= NULL, x = NULL, y = "Menor Fatura")+ 
+  scale_color_discrete(name = "Clusters")
+
+grid.arrange(a,b, ncol = 2)
+
+```
+
+Finally, we analyze the payouts of the 3 groups. We can conclude here that the pink group, as expected, has the lowest base invoice. The green group, due to high consumption, has the largest bill. However, when we analyze the blue group, we see that they are people who do not usually have the highest bill, but have a higher average ticket than the other groups - this is interpreted as having the highest minimum bill, so their expenses usually be high but less frequent.
+
+**Conclusion**
+
+The work reaches its conclusion with the presentation of the three clustered groups based on credit card consumption. The analysis of the groups indicates that there is a specific group (green) that is more conducive to consumption on the card, and may have more targeted actions. This group, according to the cluster analysis, is more consumerist, even if they do not have such a high account balance or have to resort to installment purchases. Another direction, starting from the cluster analysis, is the implementation of actions for the blue group. This has a balance but does not have as much consumption, being a market with good potential to be explored. For that, first it is necessary to understand why this group does not have so much consumption on the card, since they have the means to do so. Finally, the pink group has the least potential to be developed, as it is made up of people who do not have much balance in their account and a lower limit on their card. This group can be better explored through installment payment actions. The analysis of purchases versus installment purchases showed a small difference between them, and together with the low bill, it shows that this group does not consume because they are unable to pay in cash.
+
+To improve the work, I recommend the application of other collinearity techniques and other k analysis for clustering.
